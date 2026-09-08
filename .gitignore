@@ -1,5 +1,6 @@
 # Devbox / dev-env runtime artifacts
 .devbox/
+!.devbox/log4j2-dev.xml
 
 # Node
 node_modules/
