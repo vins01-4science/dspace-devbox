@@ -1,16 +1,22 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/docs/schema.json",
-  "packages": [
-    "maven",
-    "nodejs_22",
-    "git",
-    "jdk21@latest",
-    "mvnd@latest",
-    "pnpm@latest",
-    "docker@latest",
-    "awscli@latest",
-    "vim@latest"
-  ],
+  "packages": {
+    "maven": "latest",
+    "nodejs_22": "latest",
+    "git": "latest",
+    "jdk21": "latest",
+    "mvnd": "latest",
+    "pnpm": "latest",
+    "awscli": "latest",
+    "vim": "latest",
+    "postgresql_15": {
+      "version": "latest",
+      "disable_plugin": true
+    },
+    "mailpit": "latest",
+    "path:.#solr": {},
+    "path:.#floci": {}
+  },
   "env": {
     "MAVEN_OPTS":   "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Djava.net.preferIPv4Stack=true",
     "NODE_OPTIONS": "--max-old-space-size=4096",
@@ -18,7 +24,9 @@
   },
   "shell": {
     "init_hook": [
-      "export JAVA_HOME=\"$(dirname \"$(dirname \"$(readlink -f \"$(which java)\")\")\")\""
+      "export JAVA_HOME=\"$(dirname \"$(dirname \"$(readlink -f \"$(which java)\")\")\")\"",
+      "export DEVBOX_ROOT=\"$PWD\"",
+      "export DEVBOX_DIR=\"${DEVBOX_ROOT}/.devbox\""
     ],
     "scripts": {
       "setup":        "bash scripts/init.sh",

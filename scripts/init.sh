@@ -16,4 +16,14 @@ fi
 echo "[init] compiling backend + building classpath ..."
 bash "${SCRIPT_DIR}/lib/classpath.sh"
 
+# Apply DB migrations when the infra DB is reachable: on a clean PGDATA the
+# first backend boot would otherwise fail with Flyway "missing table".
+# Flyway migrate is idempotent (only pending migrations are applied).
+if pg_isready -h 127.0.0.1 -p "${PG_PORT:-5432}" >/dev/null 2>&1; then
+    echo "[init] applying DB migrations (Flyway) ..."
+    bash "${SCRIPT_DIR}/dspace-cli.sh" database migrate
+else
+    echo "[init] DB not reachable - skipping migrate (run 'devbox run infra-up' first, then 'bash scripts/dspace-cli.sh database migrate')"
+fi
+
 echo "[init] done. Next: 'devbox run infra:up' then 'devbox run backend' and 'devbox run ui'."

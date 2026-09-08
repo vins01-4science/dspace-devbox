@@ -3,33 +3,29 @@
 # Set INSTANCE=<n> (default 1) to run multiple backend/UI pairs in parallel.
 #
 # STATELESS PORT MODEL:
-#  - Infra (postgres/solr/floci/mailpit) exposes RANDOM host ports (compose
-#    single-number mapping). The real host ports are DISCOVERED live with
-#    `docker compose port <service> <container-port>` on every run.
+#  - Infra (postgres/solr/floci/mailpit) exposes FIXED host ports (5432, 8983,
+#    4566, 1025/8025) controlled by process-compose.yml; override via env
+#    (PG_PORT, SOLR_PORT, S3_PORT, SMTP_PORT, MAILPIT_UI_PORT).
 #  - Backend/UI get random free OS ports bound at startup (fallback). No state
 #    files are ever written or read: everything resolves at runtime.
 set -euo pipefail
 
 DEVBOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEVBOX_DIR="${DEVBOX_ROOT}/.devbox"
-COMPOSE_FILE="${DEVBOX_ROOT}/docker-compose.devbox.yml"
-export DEVBOX_ROOT DEVBOX_DIR COMPOSE_FILE
+export DEVBOX_ROOT DEVBOX_DIR
 
 # --- free host port (bind :0, read, release) ---
 free_port() {
     node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'
 }
 
-# --- discover the random host port published by a compose service ---
-# discover_port <service> <container-port> [fallback]
+# --- discover the port for a native service (fixed defaults now) ---
+# discover_port <service> <default-port> [fallback]
+# NOTE: arguments of `local` are expanded BEFORE assignment, so under `set -u`
+# a one-line `local a=$1 b=$2 c=${3:-$b}` dies on the unset cport. Keep them on
+# separate lines (or echo directly).
 discover_port() {
-    local svc="$1" cport="$2" fallback="${3:-$cport}"
-    local out
-    if out="$(docker compose -f "${COMPOSE_FILE}" port "${svc}" "${cport}" 2>/dev/null)"; then
-        out="${out##*:}"               # "0.0.0.0:5432" -> "5432"
-        [[ "${out}" =~ ^[0-9]+$ ]] && { echo "${out}"; return; }
-    fi
-    echo "${fallback}"
+    echo "$2"
 }
 
 INSTANCE="${INSTANCE:-1}"
@@ -46,12 +42,12 @@ UI_PORT="${UI_PORT:-$(free_port)}"
 [[ "${UI_PORT}" =~ ^[0-9]+$ ]] || UI_PORT="$(free_port)"
 export BACKEND_PORT UI_PORT
 
-# --- infra: discover whatever random host ports the stack is using ---
-PG_PORT="$(discover_port db 5432 "${POSTGRES_PORT:-5432}")"
-SOLR_PORT="$(discover_port solr 8983 "${SOLR_PORT:-8983}")"
-S3_PORT="$(discover_port s3 4566 "${FLOCI_PORT:-4566}")"
-SMTP_PORT="$(discover_port mailpit 1025 "${MAIL_PORT:-1025}")"
-MAILPIT_UI_PORT="$(discover_port mailpit 8025 "${SMTP_UI_PORT:-8025}")"
+# --- infra: native services use fixed host ports (set via env if needed) ---
+PG_PORT="$(discover_port db "${POSTGRES_PORT:-5432}")"
+SOLR_PORT="$(discover_port solr "${SOLR_PORT:-8983}")"
+S3_PORT="$(discover_port s3 "${FLOCI_PORT:-4566}")"
+SMTP_PORT="$(discover_port mailpit "${MAIL_PORT:-1025}")"
+MAILPIT_UI_PORT="$(discover_port mailpit "${SMTP_UI_PORT:-8025}")"
 
 # Single shared infra (not per-instance)
 DB_NAME="${DDEV_DB:-dspace}"

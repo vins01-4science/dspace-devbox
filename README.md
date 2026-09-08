@@ -5,10 +5,9 @@ Fast, reproducible, small dev env for the two repos in this folder:
 
 - **No packaging.** The backend runs straight from `target/classes` dirs plus
   `.m2` jars on the classpath — no fat `server-boot` jar is ever built or copied.
-- **Random ports, zero state.** All exposed ports are random and non-overlapping;
-  nothing is stored, everything is discovered live.
-- **All infra, minimal images.** Postgres, Solr, the Floci S3 emulator and a
-  Mailpit SMTP relay, each as a small container, exposed on random host ports.
+- **Native infra.** Postgres 15, Solr 9.10.1, Mailpit and the Floci S3 emulator all
+  run as **native** services via `devbox services` (process-compose) — no Docker
+  anywhere in the stack. Floci is built from source (Quarkus JAR) by `flake.nix`.
 - **S3 via Floci.** Bitstream storage goes to a Floci `dspace-assets` bucket
   (path-style, creds `test`/`test`), so S3 works with zero cloud cost.
 - **Hot reload.** UI: `ng serve` watch mode (always on). Backend: `mvn compile`
@@ -52,7 +51,7 @@ idempotent — safe to run any time after editing `repos.conf`.
 Everything is driven through `devbox` scripts (defined in `devbox.json`).
 
 ```bash
-devbox run infra-up      # start postgres + solr + floci + mailpit (random host ports)
+devbox run infra-up      # start postgres + solr + floci + mailpit (native, fixed ports)
 devbox run backend       # boot the backend (random free port, ~15 s)
 devbox run ui            # boot the Angular dev server (random free port, watch mode)
 ```
@@ -67,8 +66,9 @@ devbox run dev
 
 ## First run only
 
-`devbox run setup` — `npm ci` in `dspace-angular` (once) and resolves the
-backend classpath. The database schema is migrated by:
+`devbox run setup` — `npm ci` in `dspace-angular` (once), resolves the
+backend classpath, and — when the infra DB is reachable — applies the Flyway
+migrations automatically (idempotent). To migrate manually instead:
 
 ```bash
 devbox shell
@@ -94,20 +94,29 @@ bash scripts/dspace-cli.sh create-administrator -e admin@dspace.org -f Admin -l 
 | -------------- | --------------------------------------------------------- |
 | UI             | `http://localhost:<ui port>/home` (printed by `env`)      |
 | Backend REST   | `http://localhost:<backend port>/server`                  |
-| Mailpit inbox  | `docker compose -f docker-compose.devbox.yml port mailpit 8025` |
-| Solr admin     | `docker compose -f docker-compose.devbox.yml port solr 8983` + `/solr`  |
+| Mailpit inbox  | `http://localhost:8025` (fixed)                           |
+| Solr admin     | `http://localhost:8983/solr` (fixed)                      |
 
-Run `bash scripts/lib/env.sh` (or `devbox run env`) to print the current random
-ports; every run allocates new ones.
+Infra services run on **fixed** host ports: Postgres `5432`, Solr `8983`, Floci
+`4566`, Mailpit SMTP `1025` / UI `8025` (override via `PG_PORT`, `SOLR_PORT`,
+`S3_PORT`, `SMTP_PORT`, `MAILPIT_UI_PORT`). Note: the `floci` AWS profile in
+`~/.aws/config` pins `endpoint_url` to `http://localhost:4566` — if you override
+`S3_PORT`, update it accordingly. Run `bash scripts/lib/env.sh` (or
+`devbox run env`) to print the current values; the backend/UI ports are still
+random per run.
 
 Login: `admin@dspace.org` / `admin123`.
 
 ## How the ports model works
 
-- **Infra (docker):** `docker-compose.devbox.yml` publishes every service on an
-  ephemeral host port (single-number `ports:` syntax). Nothing is pinned.
-- **Discovery:** `scripts/lib/env.sh` asks Docker live for the mapping with
-  `docker compose ... port <service> <containerPort>` and computes `PORT`s from it.
+- **Infra (all native):** Postgres 15, Solr 9.10.1, Mailpit and Floci S3 run as
+  native processes managed by `devbox services` (process-compose) with **fixed**
+  host ports (`5432`, `8983`, `4566`, `1025`/`8025`). All definitions live in
+  `process-compose.yml`.
+- **Custom packages where nixpkgs lacks the exact version:** `flake.nix` builds
+  Solr 9.10.1 from the Apache CDN (fetchurl) and Floci 2.0.1 from source
+  (Maven/Quarkus; it publishes no standalone binary). Postgres and Mailpit come
+  from nixpkgs.
 - **Backend / UI:** each run picks a random free OS port (`free_port()` in
   `env.sh`). `devbox run dev` allocates both in the same shell so the backend's
   advertised UI URL and the `ng serve` port always agree (CORS origin matches).
@@ -188,8 +197,10 @@ aws --profile floci s3 ls     # floci profile configured in ~/.aws (test/test, p
 
 ## Good to know
 
-- Scripts are `scripts/{backend,ui,dev,infra,cli,setup,init}.sh` + `scripts/lib/*`.
-- `devbox.json` provides jdk21, maven, nodejs_22, git and `AWS_PROFILE=floci`.
+- Scripts are `scripts/{backend,ui,dev,infra,cli,setup,init}.sh` + `scripts/lib/*`
+  + `scripts/{db-native,solr-native}.sh` (native service bootstrap).
+- `devbox.json` provides jdk21, maven, nodejs_22, git, postgresql_15, mailpit,
+  solr + floci (via `flake.nix`) and `AWS_PROFILE=floci`.
 - The backend is launched with `mvn -pl dspace/modules/server-boot
   spring-boot:run`; devtools + all module `target/classes` dirs are injected
   through `-Dspring-boot.run.additional-classpath-elements` (comma-separated),
