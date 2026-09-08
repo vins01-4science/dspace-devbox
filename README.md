@@ -5,9 +5,10 @@ Fast, reproducible, small dev env for the two repos in this folder:
 
 - **No packaging.** The backend runs straight from `target/classes` dirs plus
   `.m2` jars on the classpath — no fat `server-boot` jar is ever built or copied.
-- **Native infra.** Postgres 15, Solr 9.10.1, Mailpit and the Floci S3 emulator all
-  run as **native** services via `devbox services` (process-compose) — no Docker
-  anywhere in the stack. Floci is built from source (Quarkus JAR) by `flake.nix`.
+- **All-in-Docker infra.** Postgres 15, Solr 9.10.1, Mailpit and the Floci S3
+  emulator are declared together in `docker-compose.devbox.yml` and started by
+  `devbox services` (process-compose), whose single `compose` process runs
+  `docker compose up -d`. Docker is provided by the devbox itself.
 - **S3 via Floci.** Bitstream storage goes to a Floci `dspace-assets` bucket
   (path-style, creds `test`/`test`), so S3 works with zero cloud cost.
 - **Hot reload.** UI: `ng serve` watch mode (always on). Backend: `mvn compile`
@@ -109,14 +110,16 @@ Login: `admin@dspace.org` / `admin123`.
 
 ## How the ports model works
 
-- **Infra (all native):** Postgres 15, Solr 9.10.1, Mailpit and Floci S3 run as
-  native processes managed by `devbox services` (process-compose) with **fixed**
-  host ports (`5432`, `8983`, `4566`, `1025`/`8025`). All definitions live in
-  `process-compose.yml`.
-- **Custom packages where nixpkgs lacks the exact version:** `flake.nix` builds
-  Solr 9.10.1 from the Apache CDN (fetchurl) and Floci 2.0.1 from source
-  (Maven/Quarkus; it publishes no standalone binary). Postgres and Mailpit come
-  from nixpkgs.
+- **Infra (all-in-Docker):** Postgres 15, Solr 9.10.1, Mailpit and Floci S3 are
+  declared together in `docker-compose.devbox.yml` and materialized by a single
+  `compose` process in `process-compose.yml` (`docker compose up -d` on start,
+  `docker compose down` on shutdown). `devbox services` (process-compose)
+  remains the only management layer. Fixed host ports (`5432`, `8983`, `4566`,
+  `1025`/`8025`), published on loopback only; containers use
+  `restart: unless-stopped`, so the docker daemon self-heals them.
+- **Per-worktree isolation:** the compose project is tagged
+  `dspace-devbox-$(basename "$PWD")` (`COMPOSE_TAG`), so parallel checkouts of
+  this template get separate containers and volumes.
 - **Backend / UI:** each run picks a random free OS port (`free_port()` in
   `env.sh`). `devbox run dev` allocates both in the same shell so the backend's
   advertised UI URL and the `ng serve` port always agree (CORS origin matches).
@@ -198,9 +201,9 @@ aws --profile floci s3 ls     # floci profile configured in ~/.aws (test/test, p
 ## Good to know
 
 - Scripts are `scripts/{backend,ui,dev,infra,cli,setup,init}.sh` + `scripts/lib/*`
-  + `scripts/{db-native,solr-native}.sh` (native service bootstrap).
-- `devbox.json` provides jdk21, maven, nodejs_22, git, postgresql_15, mailpit,
-  solr + floci (via `flake.nix`) and `AWS_PROFILE=floci`.
+  + `scripts/solr-entrypoint.sh` (container entrypoint that creates the cores).
+- `devbox.json` provides jdk21, maven, nodejs_22, git, postgresql_15 (client
+  tools for probes/CLI), docker and `AWS_PROFILE=floci`.
 - The backend is launched with `mvn -pl dspace/modules/server-boot
   spring-boot:run`; devtools + all module `target/classes` dirs are injected
   through `-Dspring-boot.run.additional-classpath-elements` (comma-separated),

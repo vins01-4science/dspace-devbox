@@ -13,9 +13,7 @@
       "version": "latest",
       "disable_plugin": true
     },
-    "mailpit": "latest",
-    "path:.#solr": {},
-    "path:.#floci": {}
+    "docker": "latest"
   },
   "env": {
     "MAVEN_OPTS":   "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Djava.net.preferIPv4Stack=true",

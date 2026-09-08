@@ -1,0 +1,84 @@
+name: dspace-devbox-${COMPOSE_TAG:-default}
+
+# All-in-Docker variant: a single compose file declares the whole infra
+# (postgres + solr + floci + mailpit). process-compose (devbox services)
+# owns the lifecycle: its `compose` process runs `docker compose up -d`
+# here, and its shutdown runs `docker compose down`.
+# Fixed host ports, published on loopback only, overridable via env
+# (PG_PORT, SOLR_PORT, S3_PORT, SMTP_PORT, MAILPIT_UI_PORT). Data lives in
+# compose-managed volumes. COMPOSE_TAG (per-worktree) keeps parallel
+# instances of this template from sharing project/volume names.
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: dspace
+      POSTGRES_USER: dspace
+      POSTGRES_PASSWORD: dspace
+      PGDATA: /pgdata
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PG_PORT:-5432}:5432"
+    volumes:
+      - devbox-pgdata:/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dspace -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  solr:
+    image: solr:9.10.1
+    user: root
+    working_dir: /var/solr/data
+    environment:
+      SOLR_OPTS: -Dsolr.config.lib.enabled=true
+      DDEV_CORES: ${DDEV_CORES:-search,statistics,authority,oai,qaevent,suggestion,audit}
+      # Minimum viable JVM: small growable heap, Serial GC (smallest
+      # footprint), C1-only JIT, capped metaspace/direct/code cache.
+      # Overrides the image default (-Xms512m -Xmx512m + AlwaysPreTouch).
+      # GC_TUNE must carry the GC flag alone (image default is G1).
+      SOLR_JAVA_MEM: -Xms64m -Xmx128m -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=32m -XX:ReservedCodeCacheSize=64m
+      GC_TUNE: -XX:+UseSerialGC
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SOLR_PORT:-8983}:8983"
+    volumes:
+      - devbox-solrdata:/var/solr/data
+      - ./DSpace/dspace/solr:/opt/solr/server/solr/configsets:ro
+      - ./scripts/solr-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8983'"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  s3:
+    image: floci/floci:latest
+    environment:
+      FLOCI_PORT: "4566"
+      FLOCI_STORAGE_MODE: hybrid
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      FLOCI_SERVICES_S3_ENABLED: "true"
+      FLOCI_DEFAULT_REGION: us-east-1
+      FLOCI_DEFAULT_ACCOUNT_ID: "000000000000"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${S3_PORT:-4566}:4566"
+    volumes:
+      - devbox-floci:/app/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    command: ["--smtp", "0.0.0.0:1025", "--listen", "0.0.0.0:8025"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+
+volumes:
+  devbox-pgdata:
+  devbox-solrdata:
+  devbox-floci:

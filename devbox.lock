@@ -65,6 +65,44 @@
         }
       }
     },
+    "docker@latest": {
+      "last_modified": "2026-08-27T07:16:00Z",
+      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#docker",
+      "source": "devbox-search",
+      "version": "29.7.2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ygwlf2n1v665q3y9qfhr3ah2f73p6vg3-docker-29.7.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/ygwlf2n1v665q3y9qfhr3ah2f73p6vg3-docker-29.7.2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/vbadx0fq2qsb1nf56rfpxpxwkgygj33b-docker-29.7.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/vbadx0fq2qsb1nf56rfpxpxwkgygj33b-docker-29.7.2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/96if2dvb42y5wpvcklygid7crayfvm1m-docker-29.7.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/96if2dvb42y5wpvcklygid7crayfvm1m-docker-29.7.2"
+        }
+      }
+    },
     "git@latest": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#git",
@@ -160,44 +198,6 @@
             }
           ],
           "store_path": "/nix/store/bk3x3ia7gxqic1jgr3dz05gwi8zw671y-openjdk-21+35"
-        }
-      }
-    },
-    "mailpit@latest": {
-      "last_modified": "2026-08-27T07:16:00Z",
-      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#mailpit",
-      "source": "devbox-search",
-      "version": "1.31.0",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/qk1fzqiynbxx97jk0p3fl95gciz32xa9-mailpit-1.31.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/qk1fzqiynbxx97jk0p3fl95gciz32xa9-mailpit-1.31.0"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/7bpimk8bwmnifs733sly1ihdsfaf5f9l-mailpit-1.31.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/7bpimk8bwmnifs733sly1ihdsfaf5f9l-mailpit-1.31.0"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/8l8fw6gbndfjcq89d49ddizlh551j88k-mailpit-1.31.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/8l8fw6gbndfjcq89d49ddizlh551j88k-mailpit-1.31.0"
         }
       }
     },

@@ -1,80 +1,38 @@
 version: "0.5"
 
-processes:
-  # --- PostgreSQL 15 (native) ---
-  db:
-    command: "bash ${DEVBOX_ROOT}/scripts/db-native.sh"
-    environment:
-      - "DEVBOX_ROOT=${DEVBOX_ROOT}"
-      - "DEVBOX_DIR=${DEVBOX_DIR}"
-      - "PG_PORT=${PG_PORT:-5432}"
-      - "DDEV_DBS=${DDEV_DBS:-dspace}"
-    availability:
-      restart: "always"
-    readiness:
-      exec:
-        command: "pg_isready -h 127.0.0.1 -p ${PG_PORT:-5432} -U dspace -d postgres"
-        initial_delay_seconds: 2
-        period_seconds: 2
-        timeout_seconds: 3
-        success_threshold: 1
-        failure_threshold: 30
+# All-in-Docker variant. process-compose (devbox services) owns the whole
+# lifecycle; the single `compose` process materializes the stack declared
+# in docker-compose.devbox.yml (postgres + solr + floci + mailpit) via
+# `docker compose up -d` and tears it down on shutdown. Containers carry
+# `restart: unless-stopped`, so the docker daemon self-heals them; the
+# readiness probe + availability.restart re-run the (idempotent) compose
+# up if the whole stack disappears.
 
-  # --- Solr 9.10.1 (native via custom Nix derivation) ---
-  solr:
-    command: "bash ${DEVBOX_ROOT}/scripts/solr-native.sh"
+processes:
+  compose:
+    command: "bash -c 'docker compose -f ${DEVBOX_ROOT}/docker-compose.devbox.yml up -d'"
+    is_daemon: true
     environment:
       - "DEVBOX_ROOT=${DEVBOX_ROOT}"
+      - "COMPOSE_TAG=${COMPOSE_TAG:-default}"
+      - "PG_PORT=${PG_PORT:-5432}"
       - "SOLR_PORT=${SOLR_PORT:-8983}"
+      - "S3_PORT=${S3_PORT:-4566}"
+      - "SMTP_PORT=${SMTP_PORT:-1025}"
+      - "MAILPIT_UI_PORT=${MAILPIT_UI_PORT:-8025}"
       - "DDEV_CORES=${DDEV_CORES:-search,statistics,authority,oai,qaevent,suggestion,audit}"
     availability:
       restart: "always"
-    readiness:
+      max_restarts: 0
+      backoff: "5s"
+    shutdown:
+      command: "bash -c 'docker compose -f ${DEVBOX_ROOT}/docker-compose.devbox.yml down'"
+      timeout_seconds: 60
+    readiness_probe:
       exec:
-        command: "bash -c 'exec 3<>/dev/tcp/127.0.0.1/${SOLR_PORT:-8983}'"
-        initial_delay_seconds: 5
-        period_seconds: 5
-        timeout_seconds: 5
-        success_threshold: 1
-        failure_threshold: 60
-
-  # --- Floci S3 (native, built from source via custom Nix derivation) ---
-  s3:
-    command: "bash -c 'mkdir -p ${DEVBOX_DIR}/floci && exec floci'"
-    environment:
-      - "DEVBOX_DIR=${DEVBOX_DIR}"
-      - "S3_PORT=${S3_PORT:-4566}"
-      - "FLOCI_PORT=${S3_PORT:-4566}"
-      - "QUARKUS_HTTP_HOST=127.0.0.1"
-      - "FLOCI_STORAGE_MODE=hybrid"
-      - "FLOCI_STORAGE_PERSISTENT_PATH=${DEVBOX_DIR}/floci"
-      - "FLOCI_SERVICES_S3_ENABLED=true"
-      - "FLOCI_DEFAULT_REGION=us-east-1"
-      - "FLOCI_DEFAULT_ACCOUNT_ID=000000000000"
-    availability:
-      restart: "always"
-    readiness:
-      exec:
-        command: "bash -c 'exec 3<>/dev/tcp/127.0.0.1/${S3_PORT:-4566}'"
-        initial_delay_seconds: 5
-        period_seconds: 3
-        timeout_seconds: 5
-        success_threshold: 1
-        failure_threshold: 40
-
-  # --- Mailpit (native) ---
-  mailpit:
-    command: "mailpit --smtp 127.0.0.1:${SMTP_PORT:-1025} --listen 127.0.0.1:${MAILPIT_UI_PORT:-8025}"
-    environment:
-      - "SMTP_PORT=${SMTP_PORT:-1025}"
-      - "MAILPIT_UI_PORT=${MAILPIT_UI_PORT:-8025}"
-    availability:
-      restart: "always"
-    readiness:
-      exec:
-        command: "bash -c 'exec 3<>/dev/tcp/127.0.0.1/${SMTP_PORT:-1025}'"
-        initial_delay_seconds: 2
-        period_seconds: 2
-        timeout_seconds: 3
-        success_threshold: 1
-        failure_threshold: 10
+        command: "pg_isready -h 127.0.0.1 -p ${PG_PORT:-5432} -U dspace -d postgres >/dev/null 2>&1"
+      initial_delay_seconds: 2
+      period_seconds: 3
+      timeout_seconds: 3
+      failure_threshold: 40
+      success_threshold: 1
