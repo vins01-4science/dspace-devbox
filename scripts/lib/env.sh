@@ -43,11 +43,13 @@ UI_PORT="${UI_PORT:-$(free_port)}"
 export BACKEND_PORT UI_PORT
 
 # --- infra: native services use fixed host ports (set via env if needed) ---
-PG_PORT="$(discover_port db "${POSTGRES_PORT:-5432}")"
-SOLR_PORT="$(discover_port solr "${SOLR_PORT:-8983}")"
-S3_PORT="$(discover_port s3 "${FLOCI_PORT:-4566}")"
-SMTP_PORT="$(discover_port mailpit "${MAIL_PORT:-1025}")"
-MAILPIT_UI_PORT="$(discover_port mailpit "${SMTP_UI_PORT:-8025}")"
+# An explicit PG_PORT/SOLR_PORT/... from the caller must survive this sourcing,
+# hence the export-if-unset pattern (discover_port only fills the default).
+PG_PORT="${PG_PORT:-$(discover_port db "${POSTGRES_PORT:-5432}")}"
+SOLR_PORT="${SOLR_PORT:-$(discover_port solr "${SOLR_PORT:-8983}")}"
+S3_PORT="${S3_PORT:-$(discover_port s3 "${FLOCI_PORT:-4566}")}"
+SMTP_PORT="${SMTP_PORT:-$(discover_port mailpit "${MAIL_PORT:-1025}")}"
+MAILPIT_UI_PORT="${MAILPIT_UI_PORT:-$(discover_port mailpit "${SMTP_UI_PORT:-8025}")}"
 
 # Single shared infra (not per-instance)
 DB_NAME="${DDEV_DB:-dspace}"
