@@ -71,14 +71,22 @@ devbox run dev
 backend classpath. The database schema is migrated by:
 
 ```bash
-devbox run cli -- database migrate
+devbox shell
+bash scripts/dspace-cli.sh database migrate
 ```
 
 and the administrator is created by:
 
 ```bash
-devbox run cli -- create-administrator -e admin@dspace.org -f Admin -l User -p admin123 -c en
+bash scripts/dspace-cli.sh create-administrator -e admin@dspace.org -f Admin -l User -p admin123 -c en
 ```
+
+> **Why `devbox shell` + the script, not `devbox run cli -- <args>`?**
+> Args passed after `--` to a script declared in `devbox.json` are currently
+> **dropped** by devbox (v0.18.0), so `ScriptLauncher` gets no command and only
+> prints usage. The `dspace-cli.sh` wrapper forwards `"$@"` correctly, so run it
+> from inside a `devbox shell` (or directly, if your host already matches the
+> devbox toolchain).
 
 ## What is where
 

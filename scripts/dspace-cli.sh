@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Run a DSpace CLI command (ScriptLauncher) inside the selected instance env.
-# Examples:
-#   devbox run cli -- create-administrator -e admin@dspace.org -f Admin -l User -p admin123 -c en
-#   devbox run cli -- help
+# NOTE: devbox (v0.18.0) drops args after `--` when running a devbox.json script,
+# so invoke this script directly, e.g. from inside a `devbox shell`:
+#   devbox shell
+#   bash scripts/dspace-cli.sh create-administrator -e admin@dspace.org -f Admin -l User -p admin123 -c en
+#   bash scripts/dspace-cli.sh help
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
