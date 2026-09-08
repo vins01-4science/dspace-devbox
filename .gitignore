@@ -1,0 +1,13 @@
+# Devbox / dev-env runtime artifacts
+.devbox/
+
+# Node
+node_modules/
+
+# DSpace / Angular local dev config overrides
+dspace-angular/config/config.dev.yml
+
+# IDE
+.idea/
+
+.dockerignore

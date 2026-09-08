@@ -1,0 +1,8 @@
+[submodule "DSpace"]
+	path = DSpace
+	url = git@github.com:vins01-4science/DSpace.git
+	branch = task/main/hot-reload
+[submodule "dspace-angular"]
+	path = dspace-angular
+	url = git@github.com:DSpace/dspace-angular.git
+	branch = main

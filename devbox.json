@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/docs/schema.json",
+  "packages": [
+    "maven",
+    "nodejs_22",
+    "git",
+    "jdk21@latest",
+    "mvnd@latest",
+    "pnpm@latest",
+    "docker@latest",
+    "awscli@latest",
+    "vim@latest"
+  ],
+  "env": {
+    "MAVEN_OPTS":   "-XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Djava.net.preferIPv4Stack=true",
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "AWS_PROFILE":  "floci"
+  },
+  "shell": {
+    "init_hook": [
+      "export JAVA_HOME=\"$(dirname \"$(dirname \"$(readlink -f \"$(which java)\")\")\")\""
+    ],
+    "scripts": {
+      "setup":        "bash scripts/init.sh",
+      "init-repos":   "bash scripts/init-repos.sh",
+      "infra":        "bash scripts/infra.sh",
+      "infra-up":     "bash scripts/infra.sh up",
+      "infra-down":   "bash scripts/infra.sh down",
+      "infra-clean":  "bash scripts/infra.sh clean",
+      "infra-logs":   "bash scripts/infra.sh logs",
+      "backend":      "bash scripts/backend.sh",
+      "backend-boot": "bash scripts/backend.sh",
+      "ui":           "bash scripts/ui.sh",
+      "dev":          "bash scripts/dev.sh",
+      "cli":          "bash scripts/dspace-cli.sh",
+      "compile":      "bash scripts/lib/classpath.sh",
+      "env":          "bash scripts/lib/env.sh"
+    }
+  }
+}
