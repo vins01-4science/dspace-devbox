@@ -5,11 +5,15 @@ Fast, reproducible, small dev env for the two repos in this folder:
 
 - **No packaging.** The backend runs straight from `target/classes` dirs plus
   `.m2` jars on the classpath — no fat `server-boot` jar is ever built or copied.
-- **Native infra.** Postgres 15, Solr 9.10.1, Mailpit and the Floci S3 emulator all
-  run as **native** services via `devbox services` (process-compose) — no Docker
-  anywhere in the stack. Floci is built from source (Quarkus JAR) by `flake.nix`.
-- **S3 via Floci.** Bitstream storage goes to a Floci `dspace-assets` bucket
-  (path-style, creds `test`/`test`), so S3 works with zero cloud cost.
+- **Native infra.** Postgres 15, Solr 9.10.1, Mailpit and the Ministack S3
+  emulator all run as **native** services via `devbox services`
+  (process-compose) — no Docker anywhere in the stack. Ministack is installed
+  from its PyPI wheel (Python/hypercorn, LocalStack-compatible) by `flake.nix`
+  with versions pinned to upstream's exact requirements. The previous Floci
+  (Quarkus JAR) emulator remains packaged in `flake.nix` as an **opt-in** — it
+  is not installed by default (see “Choosing the S3 emulator”).
+- **S3 via Ministack.** Bitstream storage goes to a Ministack `dspace-assets`
+  bucket (path-style, creds `test`/`test`), so S3 works with zero cloud cost.
 - **Hot reload.** UI: `ng serve` watch mode (always on). Backend: `mvn compile`
   + restart — see “Hot reload, backend” below.
 
@@ -51,7 +55,7 @@ idempotent — safe to run any time after editing `repos.conf`.
 Everything is driven through `devbox` scripts (defined in `devbox.json`).
 
 ```bash
-devbox run infra-up      # start postgres + solr + floci + mailpit (native, fixed ports)
+devbox run infra-up      # start postgres + solr + s3 + mailpit (native, fixed ports)
 devbox run backend       # boot the backend (random free port, ~15 s)
 devbox run ui            # boot the Angular dev server (random free port, watch mode)
 ```
@@ -97,11 +101,18 @@ bash scripts/dspace-cli.sh create-administrator -e admin@dspace.org -f Admin -l 
 | Mailpit inbox  | `http://localhost:8025` (fixed)                           |
 | Solr admin     | `http://localhost:8983/solr` (fixed)                      |
 
-Infra services run on **fixed** host ports: Postgres `5432`, Solr `8983`, Floci
-`4566`, Mailpit SMTP `1025` / UI `8025` (override via `PG_PORT`, `SOLR_PORT`,
-`S3_PORT`, `SMTP_PORT`, `MAILPIT_UI_PORT`). Note: the `floci` AWS profile in
-`~/.aws/config` pins `endpoint_url` to `http://localhost:4566` — if you override
-`S3_PORT`, update it accordingly. Run `bash scripts/lib/env.sh` (or
+Infra services use **default** host ports (`5432`, `8983`, `4566`, `1025`/`8025`)
+overridable via `PG_PORT`, `SOLR_PORT`, `S3_PORT`, `SMTP_PORT`,
+`MAILPIT_UI_PORT`. If a port is already taken, `scripts/infra.sh up` (and Solr
+even under a bare `devbox services up`) auto-detects it and shifts to the first
+free port in `base+1..+20` — no restart loops. The chosen ports persist in
+`.devbox/ports.env` (plus `.devbox/solr-data/.port` for Solr) so the backend
+and the readiness probes always follow the running services. The `floci` AWS
+profile in `~/.aws/config` pins `endpoint_url` to `http://localhost:4566` with
+creds `test`/`test` (path-style); it is **not** applied automatically — only
+use it explicitly with `aws --profile floci ...`, so the devbox shell's `aws`
+never touches your real AWS configuration. If you override `S3_PORT`, update
+the profile's `endpoint_url` accordingly. Run `bash scripts/lib/env.sh` (or
 `devbox run env`) to print the current values; the backend/UI ports are still
 random per run.
 
@@ -109,19 +120,68 @@ Login: `admin@dspace.org` / `admin123`.
 
 ## How the ports model works
 
-- **Infra (all native):** Postgres 15, Solr 9.10.1, Mailpit and Floci S3 run as
-  native processes managed by `devbox services` (process-compose) with **fixed**
-  host ports (`5432`, `8983`, `4566`, `1025`/`8025`). All definitions live in
-  `process-compose.yml`.
+- **Infra (all native):** Postgres 15, Solr 9.10.1, Mailpit and Ministack S3
+  (LocalStack-compatible) run as native processes managed by `devbox services`
+  (process-compose) with **fixed** host ports (`5432`, `8983`, `4566`,
+  `1025`/`8025`). All definitions live in `process-compose.yml`.
+- **Busy-port auto-relocation:** `scripts/infra.sh up` probes every fixed port
+  up front and relocates any that are taken, persisting the choices to
+  `.devbox/ports.env` (reloaded by `env.sh` for every run script). Solr is
+  additionally self-healing at the process level: if its port is busy when it
+  starts (e.g. a system-wide Solr already listens on `8983`), `solr-native.sh`
+  picks a free port, records it in `.devbox/solr-data/.port`, and the
+  process-compose readiness/shutdown probes plus the backend wiring follow it —
+  so even a bare `devbox services up` won't restart-loop. Ports stay stable
+  across restarts once relocated.
 - **Custom packages where nixpkgs lacks the exact version:** `flake.nix` builds
-  Solr 9.10.1 from the Apache CDN (fetchurl) and Floci 2.0.1 from source
-  (Maven/Quarkus; it publishes no standalone binary). Postgres and Mailpit come
-  from nixpkgs.
+  Solr 9.10.1 from the Apache CDN (fetchurl) and installs Ministack from its
+  PyPI wheel. All Ministack packages are pure-Python wheels (`py3-none-any`)
+  installed as-is — nothing is compiled — with versions pinned to upstream's
+  exact requirements (`botocore==1.43.63`, `graphql-core==3.2.12`, and
+  `jsonata-python==0.7.0`, which nixpkgs does not ship). Postgres and Mailpit
+  come from nixpkgs. Floci 2.0.1 (Maven/Quarkus) is still built as `.#floci` /
+  `.#floci-native` — an opt-in alternative, not installed by default.
+- **Footprints (lean on purpose):** the only JVM service left is Solr, capped
+  via `SOLR_JAVA_MEM` in `process-compose.yml` (`-Xmx128m`, SerialGC). Ministack
+  is Python — a single asyncio event loop, no JIT heap or off-heap buffers —
+  measuring ~43 MB RSS idle (~57 MB under active S3 uploads), a fraction of a
+  JVM's footprint. (For comparison, the old Floci wrapper capped its heap at
+  `-Xmx256m` ~190 MB RSS, and the opt-in `.#floci-native` is ~80 MB.)
+- **Floci native (optional alternative):** `flake.nix` also exposes
+  `.#floci-native`, a GraalVM **native-image** build of Floci (no JVM at
+  runtime, ~80 MB RSS, ~30 ms start). See "Choosing the S3 emulator" below for
+  the switch recipe.
 - **Backend / UI:** each run picks a random free OS port (`free_port()` in
   `env.sh`). `devbox run dev` allocates both in the same shell so the backend's
   advertised UI URL and the `ng serve` port always agree (CORS origin matches).
 - **Per instance:** `INSTANCE=2 devbox run backend` starts a second instance on
   a different random port using the same shared database, Solr cores and bucket.
+
+## Choosing the S3 emulator
+
+**Ministack is the default and works out of the box** — `devbox.json` installs
+it, and the `s3` service in `process-compose.yml` boots it. It speaks the
+LocalStack API, so the same client-side `floci` profile, env exports and
+`aws`/DSpace code work against it unchanged. No Docker, no JVM: ~43 MB RSS
+idle (~57 MB under active S3 uploads).
+
+Floci (the previous Quarkus-based emulator) is still built by `flake.nix` as
+`.#floci` (JAR) and `.#floci-native` (GraalVM native-image), but it is **not
+installed** by default — its binary is not on the devbox PATH. To use it
+instead of Ministack:
+
+1. Add it to `devbox.json` packages — `"path:.#floci": {}`, or
+   `"path:.#floci-native": {}` for the native build — then re-run
+   `devbox update`.
+2. Point the `s3` service in `process-compose.yml` at it: swap
+   `exec ministack` for `exec floci` and replace the `MINISTACK_*` env with
+   the `FLOCI_*`/`QUARKUS_HTTP_HOST` block (both variants are documented in
+   git history).
+
+Caveat for `.#floci-native`: the build takes 2–5 min with GraalVM CE as a
+build-only dep, and native binaries are not byte-reproducible, so the
+fixed-output hash in `flake.nix` must be re-pinned when the derivation changes
+(run `nix build .#floci-native` and paste the reported hash).
 
 ## Hot reload, backend
 
@@ -178,11 +238,11 @@ stopped cleanly, and the new code answers requests on the same port.
 ## Storage (S3)
 
 `assetstore.index.primary=1` routes bitstreams to S3, and
-`assetstore.s3.endpoint=http://localhost:<floci port>` targets Floci. The
+`assetstore.s3.endpoint=http://localhost:<s3 port>` targets Ministack. The
 bucket `dspace-assets` is auto-created on first write.
 
 ```bash
-aws --profile floci s3 ls     # floci profile configured in ~/.aws (test/test, path-style)
+aws --profile floci s3 ls     # 'floci' profile → client-side only (test/test, path-style); opt in explicitly
 ```
 
 ## Configuration
@@ -199,9 +259,26 @@ aws --profile floci s3 ls     # floci profile configured in ~/.aws (test/test, p
 
 - Scripts are `scripts/{backend,ui,dev,infra,cli,setup,init}.sh` + `scripts/lib/*`
   + `scripts/{db-native,solr-native}.sh` (native service bootstrap).
-- `devbox.json` provides jdk21, maven, nodejs_22, git, postgresql_15, mailpit,
-  solr + floci (via `flake.nix`) and `AWS_PROFILE=floci`.
+- `devbox.json` pins all package versions explicitly (maven@3.9.16, mvnd@1.0.6,
+  nodejs_22@22.23.2, jdk21@21, awscli@1.44.21, vim@9.2.0782,
+  postgresql_15@15.19, mailpit@1.31.0, git@2.55.0) plus the custom Nix
+  packages `solr` and `ministack` (via `flake.nix`). No global `AWS_PROFILE`
+  is set in the devbox shell — the emulator profile is opt-in only
+  (`aws --profile floci ...`). All versions are committed in `devbox.lock` —
+  to update a package, run `devbox add <pkg>@<new-version>`.
+- The `path:.#solr` and `path:.#ministack` flake refs are locked in
+  `devbox.lock` with a relative path (`path:../../..`, resolved from the
+  generated flake against the project root), so the committed lock is
+  machine-independent — a fresh clone just works without re-locking, and no
+  per-machine edits leak into `devbox.lock` diffs. `devbox` resolves the
+  relative ref to each machine's absolute project path when it regenerates
+  `.devbox/gen`. (Only a deliberate `devbox update`/`devbox add` rewrites the
+  lock, and then only when the Nix packages actually change.)
 - The backend is launched with `mvn -pl dspace/modules/server-boot
   spring-boot:run`; devtools + all module `target/classes` dirs are injected
   through `-Dspring-boot.run.additional-classpath-elements` (comma-separated),
   keeping fresh classes in front of the stale `.m2` reactor jars.
+- **Local-only by design:** the infra binds well-known ports on localhost and
+  dev Postgres accepts the `dspace` user via `trust` auth. Do not run this env
+  on a shared/multiuser machine or bind it beyond `127.0.0.1` — if you must,
+  secure the database auth (e.g. md5/scram passwords) first.

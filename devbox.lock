@@ -1,7 +1,7 @@
 {
   "lockfile_version": "1",
   "packages": {
-    "awscli@latest": {
+    "awscli@1.44.21": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#awscli",
       "source": "devbox-search",
@@ -65,7 +65,7 @@
         }
       }
     },
-    "git@latest": {
+    "git@2.55.0": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#git",
       "source": "devbox-search",
@@ -124,10 +124,10 @@
       }
     },
     "github:NixOS/nixpkgs/nixpkgs-unstable": {
-      "last_modified": "2026-09-03T02:01:15Z",
-      "resolved": "github:NixOS/nixpkgs/5545adfad2e98de106a5544ca7067e03010410bd?lastModified=1788400875&narHash=sha256-JIHQ6xNAN53cdo6zZ72LRcQ9lpvnABCnNE4hldJ5uZU%3D"
+      "last_modified": "2026-09-09T03:01:28Z",
+      "resolved": "github:NixOS/nixpkgs/a391f95d4557d685fd8e5dc0d4b1f9271aa2f342?lastModified=1788922888&narHash=sha256-QMX3uerxnW2R5dHcWpIQILHDltOZnon3x3Spq7EzBFI%3D"
     },
-    "jdk21@latest": {
+    "jdk21@21": {
       "last_modified": "2024-06-12T20:55:33Z",
       "resolved": "github:NixOS/nixpkgs/a9858885e197f984d92d7fe64e9fff6b2e488d40#jdk",
       "source": "devbox-search",
@@ -163,7 +163,7 @@
         }
       }
     },
-    "mailpit@latest": {
+    "mailpit@1.31.0": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#mailpit",
       "source": "devbox-search",
@@ -201,7 +201,7 @@
         }
       }
     },
-    "maven@latest": {
+    "maven@3.9.16": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#maven",
       "source": "devbox-search",
@@ -249,7 +249,7 @@
         }
       }
     },
-    "mvnd@latest": {
+    "mvnd@1.0.6": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#mvnd",
       "source": "devbox-search",
@@ -287,7 +287,7 @@
         }
       }
     },
-    "nodejs_22@latest": {
+    "nodejs_22@22.23.2": {
       "last_modified": "2026-08-27T07:16:00Z",
       "plugin_version": "0.0.4",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#nodejs_22",
@@ -326,47 +326,16 @@
         }
       }
     },
-    "pnpm@latest": {
-      "last_modified": "2026-08-27T07:16:00Z",
-      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#pnpm",
-      "source": "devbox-search",
-      "version": "11.22.0",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/z0rlx5672gdlfb3830irk026yfwz8kyp-pnpm-11.22.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/z0rlx5672gdlfb3830irk026yfwz8kyp-pnpm-11.22.0"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/ym3qz78cr56fcc28v3d6paxnjs9v5gqw-pnpm-11.22.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/ym3qz78cr56fcc28v3d6paxnjs9v5gqw-pnpm-11.22.0"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/33x60qag0i4ri26wvvkp4lb3hhqw6fsc-pnpm-11.22.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/33x60qag0i4ri26wvvkp4lb3hhqw6fsc-pnpm-11.22.0"
-        }
-      }
+    "path:.#ministack": {
+      "last_modified": "2026-09-09T20:42:21Z",
+      "resolved": "path:../../..#ministack"
     },
-    "postgresql_15@latest": {
+    "path:.#solr": {
+      "last_modified": "2026-09-09T20:42:21Z",
+      "resolved": "path:../../..#solr"
+    },
+    "postgresql_15@15.19": {
       "last_modified": "2026-08-29T00:50:12Z",
-      "plugin_version": "0.0.2",
       "resolved": "github:NixOS/nixpkgs/e8be7818e19ada32105a8af937a6a473b38167ca#postgresql_15",
       "source": "devbox-search",
       "version": "15.19",
@@ -510,7 +479,7 @@
         }
       }
     },
-    "vim@latest": {
+    "vim@9.2.0782": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#vim",
       "source": "devbox-search",

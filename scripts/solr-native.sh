@@ -51,6 +51,37 @@ for core in "${CORES[@]}"; do
     echo "name=${core}" > "${SOLR_HOME}/${core}/core.properties"
 done
 
+# Auto-relocate when the configured port is already taken (another Solr/app on
+# this host). The `solr` start script would otherwise fail to bind and die, and
+# process-compose `restart: always` would loop it forever. The chosen port is
+# recorded in .port so this script's consumers (readiness probe, shutdown,
+# backend wiring in lib/env.sh) can follow it regardless of entrypoint.
+port_in_use() {
+  (exec 3<>"/dev/tcp/127.0.0.1/${1}") 2>/dev/null
+}
+if port_in_use "${SOLR_PORT}"; then
+  NEW_SOLR_PORT="${SOLR_PORT}"
+  for c in $(seq 1 20); do
+    if ! port_in_use $((SOLR_PORT + c)); then
+      NEW_SOLR_PORT=$((SOLR_PORT + c))
+      break
+    fi
+  done
+  if [ "${NEW_SOLR_PORT}" = "${SOLR_PORT}" ]; then
+    echo "[solr] ERROR: port ${SOLR_PORT} is busy and no free port in +1..+20 was found; aborting." >&2
+    exit 1
+  fi
+  echo "[solr] port ${SOLR_PORT} is busy -> using ${NEW_SOLR_PORT} instead"
+  SOLR_PORT="${NEW_SOLR_PORT}"
+fi
+echo "${SOLR_PORT}" > "${SOLR_HOME}/.port"
+
+# Keep .devbox/ports.env (persisted by `infra.sh up`) in sync so the two port
+# sources never diverge when Solr relocates under a bare `devbox services up`.
+if [ -f "${DEVBOX_ROOT}/.devbox/ports.env" ]; then
+    sed -i "s|^SOLR_PORT=.*|SOLR_PORT=${SOLR_PORT}|" "${DEVBOX_ROOT}/.devbox/ports.env" 2>/dev/null || true
+fi
+
 echo "[solr] starting Solr on port ${SOLR_PORT} with cores: ${DDEV_CORES}"
 export SOLR_OPTS="${SOLR_OPTS:--Dsolr.config.lib.enabled=true}"
 exec solr start -f -p "${SOLR_PORT}" -s "${SOLR_HOME}" --host 127.0.0.1

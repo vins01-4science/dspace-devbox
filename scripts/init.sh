@@ -26,4 +26,4 @@ else
     echo "[init] DB not reachable - skipping migrate (run 'devbox run infra-up' first, then 'bash scripts/dspace-cli.sh database migrate')"
 fi
 
-echo "[init] done. Next: 'devbox run infra:up' then 'devbox run backend' and 'devbox run ui'."
+echo "[init] done. Next: 'devbox run infra-up' then 'devbox run backend' and 'devbox run ui'."

@@ -2,10 +2,16 @@
 # DSpace dev environment. Source me, then run the backend/UI/CLI scripts.
 # Set INSTANCE=<n> (default 1) to run multiple backend/UI pairs in parallel.
 #
-# STATELESS PORT MODEL:
-#  - Infra (postgres/solr/floci/mailpit) exposes FIXED host ports (5432, 8983,
-#    4566, 1025/8025) controlled by process-compose.yml; override via env
-#    (PG_PORT, SOLR_PORT, S3_PORT, SMTP_PORT, MAILPIT_UI_PORT).
+# PORT MODEL:
+#  - Infra (postgres/solr/s3/mailpit) uses canonical host ports (5432, 8983,
+#    4566, 1025/8025). `infra.sh up` auto-detects a busy port and shifts to a
+#    free one, persisting the chosen values to .devbox/ports.env (reloaded
+#    below) so run scripts keep using the same ports for the session; an
+#    explicit env var (PG_PORT, SOLR_PORT, S3_PORT, SMTP_PORT,
+#    MAILPIT_UI_PORT) always wins.
+#  - Solr additionally self-relocates at process start if its port is taken and
+#    records the actual port in .devbox/solr-data/.port; that value overrides
+#    SOLR_PORT below so the backend follows the running Solr.
 #  - Backend/UI get random free OS ports bound at startup (fallback). No state
 #    files are ever written or read: everything resolves at runtime.
 set -euo pipefail
@@ -14,18 +20,34 @@ DEVBOX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEVBOX_DIR="${DEVBOX_ROOT}/.devbox"
 export DEVBOX_ROOT DEVBOX_DIR
 
+# Reload infra port state persisted by `infra.sh up` (auto-ports picked when a
+# fixed port was busy). Explicit caller env vars still win: loading here only
+# fills the unset ones via the `:-default` expressions below.
+if [ -f "${DEVBOX_DIR}/ports.env" ]; then
+    # shellcheck disable=SC1090
+    . "${DEVBOX_DIR}/ports.env" >/dev/null 2>&1 || true
+fi
+
+# The Solr process self-relocates to a free port when its default is taken
+# (another Solr/app on this host) and records the actual port in
+# .devbox/solr-data/.port. Prefer that value so consumers always talk to the
+# running Solr, no matter how the services were started.
+if [ -f "${DEVBOX_DIR}/solr-data/.port" ]; then
+    # shellcheck disable=SC2162
+    IFS= read -r SOLR_PORT < "${DEVBOX_DIR}/solr-data/.port" || true
+    case "${SOLR_PORT}" in
+        ''|*[!0-9]*) : ;; # ignore garbage; keep the default derived below
+        *) export SOLR_PORT ;;
+    esac
+fi
+
 # --- free host port (bind :0, read, release) ---
 free_port() {
-    node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'
-}
-
-# --- discover the port for a native service (fixed defaults now) ---
-# discover_port <service> <default-port> [fallback]
-# NOTE: arguments of `local` are expanded BEFORE assignment, so under `set -u`
-# a one-line `local a=$1 b=$2 c=${3:-$b}` dies on the unset cport. Keep them on
-# separate lines (or echo directly).
-discover_port() {
-    echo "$2"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'
+    else
+        node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'
+    fi
 }
 
 INSTANCE="${INSTANCE:-1}"
@@ -44,12 +66,12 @@ export BACKEND_PORT UI_PORT
 
 # --- infra: native services use fixed host ports (set via env if needed) ---
 # An explicit PG_PORT/SOLR_PORT/... from the caller must survive this sourcing,
-# hence the export-if-unset pattern (discover_port only fills the default).
-PG_PORT="${PG_PORT:-$(discover_port db "${POSTGRES_PORT:-5432}")}"
-SOLR_PORT="${SOLR_PORT:-$(discover_port solr "${SOLR_PORT:-8983}")}"
-S3_PORT="${S3_PORT:-$(discover_port s3 "${FLOCI_PORT:-4566}")}"
-SMTP_PORT="${SMTP_PORT:-$(discover_port mailpit "${MAIL_PORT:-1025}")}"
-MAILPIT_UI_PORT="${MAILPIT_UI_PORT:-$(discover_port mailpit "${SMTP_UI_PORT:-8025}")}"
+# hence the export-if-unset pattern.
+PG_PORT="${PG_PORT:-${POSTGRES_PORT:-5432}}"
+SOLR_PORT="${SOLR_PORT:-8983}"
+S3_PORT="${S3_PORT:-${MINISTACK_PORT:-4566}}"
+SMTP_PORT="${SMTP_PORT:-${MAIL_PORT:-1025}}"
+MAILPIT_UI_PORT="${MAILPIT_UI_PORT:-${SMTP_UI_PORT:-8025}}"
 
 # Single shared infra (not per-instance)
 DB_NAME="${DDEV_DB:-dspace}"
@@ -82,7 +104,7 @@ export db__P__driver="org.postgresql.Driver"
 export solr__P__server="http://${SOLR_HOST:-localhost}:${SOLR_PORT}/solr"
 export solr__P__multicorePrefix="${SOLR_PREFIX}"
 
-# --- Asset store: S3 via Floci (path-style, creds test/test) ---
+# --- Asset store: S3 via Ministack, path-style, creds test/test ---
 export assetstore__P__index__P__primary="1"
 export assetstore__P__s3__P__enabled="true"
 export assetstore__P__s3__P__endpoint="http://${S3_HOST:-localhost}:${S3_PORT}"
@@ -108,5 +130,5 @@ echo "  backend  http://${DEV_HOST}:${BACKEND_PORT}/server"
 echo "  ui       http://${DEV_HOST}:${UI_PORT}"
 echo "  db       ${DB_NAME} -> localhost:${PG_PORT} (single, shared)"
 echo "  solr     main cores -> localhost:${SOLR_PORT} (shared)"
-echo "  s3       ${S3_BUCKET} -> localhost:${S3_PORT} (floci)"
+echo "  s3       ${S3_BUCKET} -> localhost:${S3_PORT} (ministack)"
 echo "  mail     smtp localhost:${SMTP_PORT} / ui http://localhost:${MAILPIT_UI_PORT} (mailpit)"

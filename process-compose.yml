@@ -11,6 +11,9 @@ processes:
       - "DDEV_DBS=${DDEV_DBS:-dspace}"
     availability:
       restart: "always"
+    shutdown:
+      # Graceful fast shutdown via pg_ctl; harmless no-op if PG isn't running.
+      command: "bash -c 'pg_isready -h 127.0.0.1 -p ${PG_PORT:-5432} >/dev/null 2>&1 && pg_ctl -D ${DEVBOX_DIR}/pgdata stop -m fast || true'"
     readiness:
       exec:
         command: "pg_isready -h 127.0.0.1 -p ${PG_PORT:-5432} -U dspace -d postgres"
@@ -25,32 +28,40 @@ processes:
     command: "bash ${DEVBOX_ROOT}/scripts/solr-native.sh"
     environment:
       - "DEVBOX_ROOT=${DEVBOX_ROOT}"
+      - "DEVBOX_DIR=${DEVBOX_DIR}"
       - "SOLR_PORT=${SOLR_PORT:-8983}"
+      # Lean JVM: match the container-image tuning measured at 191 MB PSS
+      # (default bin/solr heap is 512m+AlwaysPreTouch+G1 = ~750 MB).
+      - "SOLR_JAVA_MEM=-Xms64m -Xmx128m -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=32m -XX:ReservedCodeCacheSize=64m"
+      - "GC_TUNE=-XX:+UseSerialGC"
       - "DDEV_CORES=${DDEV_CORES:-search,statistics,authority,oai,qaevent,suggestion,audit}"
     availability:
       restart: "always"
+    shutdown:
+      command: "bash -c 'solr stop -p $(cat \"${DEVBOX_DIR}/solr-data/.port\" 2>/dev/null || echo \"${SOLR_PORT:-8983}\") >/dev/null 2>&1 || true'"
     readiness:
       exec:
-        command: "bash -c 'exec 3<>/dev/tcp/127.0.0.1/${SOLR_PORT:-8983}'"
+        command: "bash -c 'p=$(cat \"${DEVBOX_DIR}/solr-data/.port\" 2>/dev/null || echo \"${SOLR_PORT:-8983}\"); exec 3<>/dev/tcp/127.0.0.1/\"$p\"'"
         initial_delay_seconds: 5
         period_seconds: 5
         timeout_seconds: 5
         success_threshold: 1
-        failure_threshold: 60
+        failure_threshold: 30
 
-  # --- Floci S3 (native, built from source via custom Nix derivation) ---
+  # --- S3 emulator (Ministack, LocalStack-compatible, via custom Nix derivation) ---
   s3:
-    command: "bash -c 'mkdir -p ${DEVBOX_DIR}/floci && exec floci'"
+    command: "bash -c 'mkdir -p ${DEVBOX_DIR}/s3 && exec ministack'"
     environment:
       - "DEVBOX_DIR=${DEVBOX_DIR}"
       - "S3_PORT=${S3_PORT:-4566}"
-      - "FLOCI_PORT=${S3_PORT:-4566}"
-      - "QUARKUS_HTTP_HOST=127.0.0.1"
-      - "FLOCI_STORAGE_MODE=hybrid"
-      - "FLOCI_STORAGE_PERSISTENT_PATH=${DEVBOX_DIR}/floci"
-      - "FLOCI_SERVICES_S3_ENABLED=true"
-      - "FLOCI_DEFAULT_REGION=us-east-1"
-      - "FLOCI_DEFAULT_ACCOUNT_ID=000000000000"
+      - "GATEWAY_PORT=${S3_PORT:-4566}"
+      - "MINISTACK_HOST=127.0.0.1"
+      - "S3_PERSIST=1"
+      - "S3_DATA_DIR=${DEVBOX_DIR}/s3/data"
+      - "PERSIST_STATE=1"
+      - "STATE_DIR=${DEVBOX_DIR}/s3/state"
+      - "MINISTACK_REGION=us-east-1"
+      - "MINISTACK_ACCOUNT_ID=000000000000"
     availability:
       restart: "always"
     readiness:
